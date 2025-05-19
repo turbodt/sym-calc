@@ -45,13 +45,14 @@ def curvature_from_christoffel_symbols(
         for j in range(n):
             for k in range(n):
                 for l in range(n):
-                    expr = 0
+                    expr = (
+                        diff(Gamma[k][i][l], q[j])
+                        - diff(Gamma[j][i][l], q[k])
+                    )
                     for h in range(n):
                         expr += (
-                            diff(Gamma[j][k][h], q[i])
-                            - diff(Gamma[i][k][h], q[j])
-                            + Gamma[i][l][h] * Gamma[j][k][l]
-                            - Gamma[j][l][h] * Gamma[i][k][l]
+                            + Gamma[j][h][l] * Gamma[k][i][h]
+                            - Gamma[k][h][l] * Gamma[j][i][h]
                         )
                     R[i, j, k, l] = simplify(expr)
     return ImmutableDenseNDimArray(R)

@@ -45,4 +45,5 @@ if __name__ == "__main__":
     Gamma = christoffel_symbols_get_from_metric(g, q)
     R = curvature_from_christoffel_symbols(Gamma, q)
 
-    print(f"{latex(R)}")
+    #print(f"{latex(R)}")
+    pprint(R)
