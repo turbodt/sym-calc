@@ -1,6 +1,7 @@
 from typing import Tuple
 from sympy import (
     DenseNDimArray,
+    Expr,
     ImmutableDenseNDimArray,
     Matrix,
     MutableDenseNDimArray,
@@ -45,7 +46,7 @@ def curvature_from_christoffel_symbols(
         for j in range(n):
             for k in range(n):
                 for l in range(n):
-                    expr = (
+                    expr: Expr = (
                         diff(Gamma[k][i][l], q[j])
                         - diff(Gamma[j][i][l], q[k])
                     )
@@ -56,3 +57,19 @@ def curvature_from_christoffel_symbols(
                         )
                     R[i, j, k, l] = simplify(expr)
     return ImmutableDenseNDimArray(R)
+
+
+def ricci_from_curvature(
+    R: ImmutableDenseNDimArray,
+    q: Tuple[Symbol]
+) -> ImmutableDenseNDimArray:
+    n = len(q)
+
+    Ric = MutableDenseNDimArray.zeros(n,n)
+
+    for i in range(n):
+        for j in range(n):
+            for k in range(n):
+                Ric[i, k] += R[i, j, k, j]
+
+    return ImmutableDenseNDimArray(Ric)
