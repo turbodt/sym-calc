@@ -25,12 +25,12 @@ def christoffel_symbols_get_from_metric(
             for k in range(n):
                 expr = 0
                 for l in range(n):
-                    expr += g_inv[i, l] * (
-                        diff(g[l, j], q[k]) +
-                        diff(g[l, k], q[j]) -
-                        diff(g[j, k], q[l])
+                    expr += g_inv[k, l] * (
+                        diff(g[l, j], q[i]) +
+                        diff(g[l, i], q[j]) -
+                        diff(g[j, i], q[l])
                     )
-                Gamma[i][j][k] = simplify(0.5 * expr)
+                Gamma[i][j][k] = simplify(expr / 2)
     return ImmutableDenseNDimArray(Gamma)
 
 
