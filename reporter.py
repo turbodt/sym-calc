@@ -38,7 +38,13 @@ class MyReporter(LatexReporter):
     def generate(self) -> str:
 
         g_inv = self.g.inv()
-        g_dot = self.g.diff(self.t)
+
+        # do not derive phi nor theta with respect t
+        u = [Dummy(f"u{i}",real=True) for i in range(self.dim)]
+        g_temp = self.g.subs({self.q[i]: u[i] for i in range(self.dim)})
+        g_dot = g_temp.diff(self.t)
+        g_dot = g_dot.subs({u[i]: self.q[i] for i in range(self.dim)})
+
         g_end: Matrix = simplify(g_inv * g_dot)
         Gamma = christoffel_symbols_get_from_metric(self.g, self.q)
         R = curvature_from_christoffel_symbols(Gamma, self.q)
