@@ -1,11 +1,11 @@
 from typing import Tuple
-from sympy import ImmutableDenseNDimArray, Matrix, Symbol, simplify
+from sympy import Dummy, ImmutableDenseNDimArray, Matrix, Symbol, simplify
 
 from renderers import my_latex
 from riemmanian import (
     christoffel_symbols_get_from_metric,
     curvature_from_christoffel_symbols,
-    ricci_from_curvature
+    ricci_from_christoffel_symbols
 )
 
 
@@ -42,7 +42,7 @@ class MyReporter(LatexReporter):
         g_end: Matrix = simplify(g_inv * g_dot)
         Gamma = christoffel_symbols_get_from_metric(self.g, self.q)
         R = curvature_from_christoffel_symbols(Gamma, self.q)
-        Ric = ricci_from_curvature(R, self.q)
+        Ric = ricci_from_christoffel_symbols(Gamma, self.q)
 
         result = self.generate_start("Calculations on pendulum")
         result += f"""
@@ -92,18 +92,22 @@ $$
     ) -> str:
         result = r"\begin{align}"
         t = self.t
-        p_q = self.generate_coords()
         for k in range(self.dim):
             expr = self.q[k].diff(t, t)
+
             for i in range(self.dim):
                 for j in range(self.dim):
                     expr += Gamma[i,j,k] * self.q[i].diff(t) * self.q[j].diff(t)
+
             for i in range(self.dim):
                 expr += g_end[k, i] * self.q[i].diff(t)
+
             expr = simplify(expr)
+
             if k:
                 result += "\\\\\n"
             result += f"0 &= {my_latex(expr)}"
+
         result += r"\end{align}"
         return result
 

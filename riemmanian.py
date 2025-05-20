@@ -1,6 +1,6 @@
 from typing import Tuple
 from sympy import (
-    DenseNDimArray,
+    Dummy,
     Expr,
     ImmutableDenseNDimArray,
     Matrix,
@@ -9,6 +9,13 @@ from sympy import (
     diff,
     simplify,
 )
+
+
+def dummy_simplification(expr: Expr, q: Tuple[Symbol]):
+    u = [Dummy(f'u{i}', real=True) for i in range(len(q))]
+    temp = expr.subs({q[i]: u[i] for i in range(len(q))})
+    temp = simplify(temp)
+    return temp.subs({u[i]: q[i] for i in range(len(q))})
 
 
 def christoffel_symbols_get_from_metric(
@@ -30,7 +37,7 @@ def christoffel_symbols_get_from_metric(
                         diff(g[l, i], q[j]) -
                         diff(g[j, i], q[l])
                     )
-                Gamma[i][j][k] = simplify(expr / 2)
+                Gamma[i][j][k] = dummy_simplification(expr / 2, q)
     return ImmutableDenseNDimArray(Gamma)
 
 
@@ -55,21 +62,28 @@ def curvature_from_christoffel_symbols(
                             + Gamma[j][h][l] * Gamma[k][i][h]
                             - Gamma[k][h][l] * Gamma[j][i][h]
                         )
-                    R[i, j, k, l] = simplify(expr)
+                    R[i, j, k, l] = dummy_simplification(expr, q)
     return ImmutableDenseNDimArray(R)
 
 
-def ricci_from_curvature(
-    R: ImmutableDenseNDimArray,
+def ricci_from_christoffel_symbols(
+    Gamma: ImmutableDenseNDimArray,
     q: Tuple[Symbol]
 ) -> ImmutableDenseNDimArray:
-    n = len(q)
 
+    n = len(q)
     Ric = MutableDenseNDimArray.zeros(n,n)
 
     for i in range(n):
-        for j in range(n):
-            for k in range(n):
-                Ric[i, k] += R[i, j, k, j]
-
+        for k in range(n):
+            expr: Expr = 0
+            for j in range(n):
+                expr += diff(Gamma[k][i][j], q[j]) - diff(Gamma[j][i][j], q[k])
+                for l in range(n):
+                    expr += (
+                        + Gamma[j][l][j] * Gamma[k][i][l]
+                        - Gamma[k][l][j] * Gamma[j][i][l]
+                    )
+            Ric[i, k] = dummy_simplification(expr, q)
     return ImmutableDenseNDimArray(Ric)
+
