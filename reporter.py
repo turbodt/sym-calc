@@ -7,7 +7,12 @@ from riemmanian import (
     curvature_from_christoffel_symbols,
     ricci_from_christoffel_symbols
 )
-
+def flatten_tuples(t):
+    for x in t:
+        if isinstance(x, tuple) or isinstance(x, list):
+            yield from flatten_tuples(x)
+        else:
+            yield x
 
 class LatexReporter(object):
     def generate_start(self, title: str) -> str:
@@ -119,53 +124,78 @@ $$
 
     def generate_curvature_table(self, R: ImmutableDenseNDimArray) -> str:
         p_R = self.generate_curvature_symbols()
-        return f"""
-\\begin{{align*}}
-      {p_R[0][0][0][0]} & = {my_latex(R[0, 0, 0, 0])}
-    & {p_R[1][0][0][0]} & = {my_latex(R[1, 0, 0, 0])}
-\\\\
-      {p_R[0][1][0][0]} & = {my_latex(R[0, 1, 0, 0])}
-    & {p_R[1][1][0][0]} & = {my_latex(R[1, 1, 0, 0])}
-\\\\
-      {p_R[0][0][1][0]} & = {my_latex(R[0, 0, 1, 0])}
-    & {p_R[1][0][1][0]} & = {my_latex(R[1, 0, 1, 0])}
-\\\\
-      {p_R[0][1][1][0]} & = {my_latex(R[0, 1, 1, 0])}
-    & {p_R[1][1][1][0]} & = {my_latex(R[1, 1, 1, 0])}
-\\\\
-      {p_R[0][0][0][1]} & = {my_latex(R[0, 0, 0, 1])}
-    & {p_R[1][0][0][1]} & = {my_latex(R[1, 0, 0, 1])}
-\\\\
-      {p_R[0][1][0][1]} & = {my_latex(R[0, 1, 0, 1])}
-    & {p_R[1][1][0][1]} & = {my_latex(R[1, 1, 0, 1])}
-\\\\
-      {p_R[0][0][1][1]} & = {my_latex(R[0, 0, 1, 1])}
-    & {p_R[1][0][1][1]} & = {my_latex(R[1, 0, 1, 1])}
-\\\\
-      {p_R[0][1][1][1]} & = {my_latex(R[0, 1, 1, 1])}
-    & {p_R[1][1][1][1]} & = {my_latex(R[1, 1, 1, 1])}
-\\end{{align*}}
-""".strip()
+        symbol_list = tuple(flatten_tuples([
+            [
+                [
+                    [
+                        p_R[i][j][k][l]
+                        for i in range(self.dim)
+                    ]
+                    for j in range(self.dim)
+                ]
+                for k in range(self.dim)
+            ]
+            for l in range(self.dim)
+        ]))
+        value_list = tuple(flatten_tuples([
+            [
+                [
+                    [
+                        my_latex(R[i, j, k, l])
+                        for i in range(self.dim)
+                    ]
+                    for j in range(self.dim)
+                ]
+                for k in range(self.dim)
+            ]
+            for l in range(self.dim)
+        ]))
+
+        result = "\\begin{align*}\n"
+        for i in range(len(symbol_list)):
+            if i %2:
+                result += "   & "
+            elif i > 0:
+                result += "\\\\\n"
+            result += f"{symbol_list[i]} & = {value_list[i]}"
+        result += r"\end{align*}"
+        return result
 
     def generate_christoffel_symbols_table(
             self,
             Gamma: ImmutableDenseNDimArray
     ) -> str:
         p_Gamma = self.generate_christoffel_symbols()
-        return f"""
-\\begin{{align*}}
-      {p_Gamma[0][0][0]} & = {my_latex(Gamma[0, 0, 0])}
-    & {p_Gamma[1][0][0]} & = {my_latex(Gamma[1, 0, 0])}
-    & {p_Gamma[0][1][0]} & = {my_latex(Gamma[0, 1, 0])}
-    & {p_Gamma[1][1][0]} & = {my_latex(Gamma[1, 1, 0])}
-\\\\
-      {p_Gamma[0][0][1]} & = {my_latex(Gamma[0, 0, 1])}
-    & {p_Gamma[1][0][1]} & = {my_latex(Gamma[1, 0, 1])}
-    & {p_Gamma[0][1][1]} & = {my_latex(Gamma[0, 1, 1])}
-    & {p_Gamma[1][1][1]} & = {my_latex(Gamma[1, 1, 1])}
-\\,,
-\\end{{align*}}
-""".strip()
+        symbol_list = tuple(flatten_tuples([
+            [
+                [
+                    p_Gamma[i][j][k]
+                    for i in range(self.dim)
+                ]
+                for j in range(self.dim)
+            ]
+            for k in range(self.dim)
+        ]))
+        value_list = tuple(flatten_tuples([
+            [
+                [
+                    my_latex(Gamma[i, j, k])
+                    for i in range(self.dim)
+                ]
+                for j in range(self.dim)
+            ]
+            for k in range(self.dim)
+        ]))
+
+        result = "\\begin{align*}\n"
+        for i in range(len(symbol_list)):
+            if i %4:
+                result += "   & "
+            elif i > 0:
+                result += "\\\\\n"
+            result += f"{symbol_list[i]} & = {value_list[i]}"
+        result += r"\end{align*}"
+        return result
 
     def generate_ricci_symbols(self) -> Tuple[Tuple[str,...],...]:
         p_q = self.generate_coords()
