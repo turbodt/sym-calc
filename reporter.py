@@ -1,5 +1,5 @@
 from typing import Tuple
-from sympy import Dummy, ImmutableDenseNDimArray, Matrix, Symbol, simplify
+from sympy import Dummy, Expr, ImmutableDenseNDimArray, Matrix, MutableDenseNDimArray, Symbol, simplify
 
 from renderers import my_latex
 from riemmanian import (
@@ -34,11 +34,25 @@ class LatexReporter(object):
 
 class MyReporter(LatexReporter):
 
-    def __init__(self, t: Symbol, q: Tuple[Symbol], g: Matrix):
+    def __init__(self, t: Symbol, q: Tuple[Symbol], g: Matrix, V: Expr):
         self.t = t
         self.q = q
         self.g = g
         self.dim = len(q)
+        self.V = V
+        g_inv = g.inv()
+
+        dVdq = [V.diff(q_i) for q_i in q]
+        dVddotq = [V.diff(q_i.diff(t)) for q_i in q]
+        self.V_euler_lagrange = [
+            simplify(dVdq[i] - dVddotq[i].diff(t))
+            for i in range(len(q))
+        ]
+        self.V_euler_lagrange_g_inv = MutableDenseNDimArray.zeros(self.dim)
+        for i in range(self.dim):
+            for j in range(self.dim):
+                self.V_euler_lagrange_g_inv[i] = g_inv[i, j] * self.V_euler_lagrange[j]
+            self.V_euler_lagrange_g_inv[i] = simplify(self.V_euler_lagrange_g_inv[i])
 
     def generate(self) -> str:
 
@@ -57,6 +71,15 @@ class MyReporter(LatexReporter):
 
         result = self.generate_start("Calculations on pendulum")
         result += f"""
+
+Potential energy is:
+
+\\begin{{align*}}
+V = {my_latex(self.V)}
+\\end{{align*}}
+
+\\bigskip
+
 Given the metric
 $$
 g = {my_latex(self.g)}
@@ -117,7 +140,7 @@ $$
 
             if k:
                 result += "\\\\\n"
-            result += f"0 &= {my_latex(expr)}"
+            result += f"{my_latex(self.V_euler_lagrange_g_inv[k])} &= {my_latex(expr)}"
 
         result += r"\end{align}"
         return result
