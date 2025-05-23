@@ -1,5 +1,5 @@
-from typing import Tuple
-from sympy import Dummy, Expr, ImmutableDenseNDimArray, Matrix, MutableDenseNDimArray, Symbol, simplify
+from typing import List, Tuple
+from sympy import Dummy, Expr, Function, ImmutableDenseNDimArray, Matrix, MutableDenseNDimArray, Symbol, simplify
 
 from renderers import my_latex
 from riemmanian import (
@@ -34,40 +34,45 @@ class LatexReporter(object):
 
 class MyReporter(LatexReporter):
 
-    def __init__(self, t: Symbol, q: Tuple[Symbol], g: Matrix, V: Expr):
+    def __init__(
+        self,
+        t: Symbol,
+        q: Tuple[Symbol],
+        v: Tuple[Symbol],
+        g: Matrix,
+        V: Expr
+    ):
         self.t = t
         self.q = q
+        self.v = v
         self.g = g
+        self.g_inv: Matrix = g.inv()
+        self.g_dot: Matrix = self.g.diff(self.t)
+        self.g_end: Matrix = self.g_inv * self.g_dot
+        self.Gamma = christoffel_symbols_get_from_metric(self.g, self.q)
         self.dim = len(q)
         self.V = V
-        g_inv = g.inv()
+        self.gamma = tuple([Function(f'gamma{i}')(t) for i in range(self.dim)])
 
-        dVdq = [V.diff(q_i) for q_i in q]
-        dVddotq = [V.diff(q_i.diff(t)) for q_i in q]
-        self.V_euler_lagrange = [
-            simplify(dVdq[i] - dVddotq[i].diff(t))
-            for i in range(len(q))
-        ]
-        self.V_euler_lagrange_g_inv = MutableDenseNDimArray.zeros(self.dim)
-        for i in range(self.dim):
-            for j in range(self.dim):
-                self.V_euler_lagrange_g_inv[i] = g_inv[i, j] * self.V_euler_lagrange[j]
-            self.V_euler_lagrange_g_inv[i] = simplify(self.V_euler_lagrange_g_inv[i])
+        dVdq: List[Expr] = [V.diff(q_i) for q_i in self.q]
+        dVddotq: List[Expr] = [V.diff(v_i) for v_i in self.v]
+        for k in range(self.dim):
+            for i in range(self.dim):
+                dVddotq[k] = dVddotq[k].subs(self.q[i], self.gamma[i])
+                dVddotq[k] = dVddotq[k].subs(self.v[i], self.gamma[i].diff(t))
+        ddVddotqdt: List[Expr] = [expr.diff(t) for expr in dVddotq]
+        for k in range(self.dim):
+            for i in range(self.dim):
+                dVddotq[k] = dVddotq[k].subs(self.gamma[i], self.q[i])
+        self.V_euler_lagrange: Tuple[Expr, ...] = tuple([
+            dVdq[i] - ddVddotqdt[i] for i in range(self.dim)
+        ])
 
     def generate(self) -> str:
 
-        g_inv = self.g.inv()
-
         # do not derive phi nor theta with respect t
-        u = [Dummy(f"u{i}",real=True) for i in range(self.dim)]
-        g_temp = self.g.subs({self.q[i]: u[i] for i in range(self.dim)})
-        g_dot = g_temp.diff(self.t)
-        g_dot = g_dot.subs({u[i]: self.q[i] for i in range(self.dim)})
-
-        g_end: Matrix = simplify(g_inv * g_dot)
-        Gamma = christoffel_symbols_get_from_metric(self.g, self.q)
-        R = curvature_from_christoffel_symbols(Gamma, self.q)
-        Ric = ricci_from_christoffel_symbols(Gamma, self.q)
+        R = curvature_from_christoffel_symbols(self.Gamma, self.q)
+        Ric = ricci_from_christoffel_symbols(self.Gamma, self.q)
 
         result = self.generate_start("Calculations on pendulum")
         result += f"""
@@ -86,25 +91,25 @@ g = {my_latex(self.g)}
 $$
 the inverse and derivative matrixes are
 \\begin{{align*}}
-g^{{-1}} &= {my_latex(g_inv)}
+g^{{-1}} &= {my_latex(self.g_inv)}
 &
-\\dot g &= {my_latex(g_dot)}
+\\dot g &= {my_latex(self.g_dot)}
 \\,.
 \\end{{align*}}
 In consequence we have
 $$
 g^{{-1}} \\circ \\dot g
 =
-{my_latex(g_end)}
+{my_latex(self.g_end)}
 \\,.
 $$
 We also obtain the Christoffel Symbols
-{self.generate_christoffel_symbols_table(Gamma)}
+{self.generate_christoffel_symbols_table(self.Gamma)}
 
 \\bigskip
 
 From here we can deduce the following equations for geodesics
-{self.generate_geodesic_equations(Gamma, g_end)}
+{self.generate_geodesic_equations()}
 
 \\subsection*{{Curvature}}
 The curvature tensor is
@@ -119,28 +124,32 @@ $$
         result += self.generate_end()
         return result
 
-    def generate_geodesic_equations(
-        self,
-        Gamma: ImmutableDenseNDimArray,
-        g_end: Matrix
-    ) -> str:
+    def generate_geodesic_equations(self) -> str:
+        g_end = self.g_end
+        for i in range(self.dim):
+            g_end = g_end.subs(self.q[i], self.gamma[i])
+            g_end = g_end.subs(self.v[i], self.gamma[i].diff(self.t))
+
         result = r"\begin{align}"
         t = self.t
         for k in range(self.dim):
-            expr = self.q[k].diff(t, t)
+            expr = self.gamma[k].diff(t,t)
 
             for i in range(self.dim):
                 for j in range(self.dim):
-                    expr += Gamma[i,j,k] * self.q[i].diff(t) * self.q[j].diff(t)
+                    expr += self.Gamma[i,j,k] * self.gamma[i].diff(t) * self.gamma[j].diff(t)
 
             for i in range(self.dim):
-                expr += g_end[k, i] * self.q[i].diff(t)
+                expr += g_end[k, i] * self.gamma[i].diff(t)
 
             expr = simplify(expr)
 
+            for i in range(self.dim):
+                expr = expr.subs(self.gamma[i], self.q[i])
+
             if k:
                 result += "\\\\\n"
-            result += f"{my_latex(self.V_euler_lagrange_g_inv[k])} &= {my_latex(expr)}"
+            result += f"{my_latex(self.V_euler_lagrange[k])} &= {my_latex(expr)}"
 
         result += r"\end{align}"
         return result

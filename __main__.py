@@ -3,10 +3,12 @@ from sympy import (
     Expr,
     Function,
     Matrix,
+    Symbol,
     cos,
     simplify,
     sin,
     symbols,
+    tan,
 )
 from reporter import MyReporter
 
@@ -18,45 +20,42 @@ def coords(phi, theta):
     ])
 
 
-def custom_display(val: str):
-    def display(self, *args, **kwargs):
-        return val
-    return display
-
-
-if __name__ == "__main__":
+def example_pendulum():
     t, m = symbols('t m')
-    q = (Function('phi', real=True)(t), Function('theta', real=True)(t), )
-    q[0]._latex = custom_display(r"\varphi")
-    q[1]._latex = custom_display(r"\theta")
-    n = len(q)
-    L = Function('l')(t)
-    G = symbols('G')
-    L._latex = custom_display(r"\ell")
+    L = Function('\\ell')(t)
+    q = (
+        Symbol('\\varphi', real=True),
+        Symbol('theta', real=True),
+    )
+    v = symbols('v:2')
 
+    V: Expr = symbols('V')
     g = Matrix(
         [
             [ m * (L**2), 0],
             [0, m * (L**2) * (sin(q[0]))**2],
         ]
     )
-    V: Expr = symbols('V')
-    report = MyReporter(t,q,g,V)
+
+    report = MyReporter(t,q,v,g,V)
     print(report.generate())
 
-    x = (Function('x', real=True)(t),)
-    x[0]._latex = custom_display(r"x")
-    F = Function('f')(t, x[0])
-    #F._latex = custom_display(r"f")
-    u = [Dummy(f"u{i}",real=True) for i in range(len(x))]
-    Ft = F.subs({x[i]: u[i] for i in range(len(x))})
-    Ft = Ft.diff(t)
-    Ft = Ft.subs({u[i]: x[i] for i in range(len(x))})
 
-    g2 = Matrix([[m*(1 + F.diff(x[0])**2)]])
+def example_particle():
+    t, m = symbols('t m')
+    G = symbols('G')
+    q = (Symbol('x', real=True),)
+    v = (Symbol('u', real=True),)
 
-    V = simplify(m * (Ft*F.diff(x[0])*x[0].diff(t)+ Ft**2 /2 + G * F))
+    F = Function('f')(t, q[0])
+    Ft = F.diff(t)
+
+    V = simplify(m * (Ft*F.diff(q[0])*q[0].diff(t)+ Ft**2 /2 + G * F))
+    g = Matrix([[m*(1 + F.diff(q[0])**2)]])
+
+    report = MyReporter(t,q,v,g,V)
+    print(report.generate())
 
 
-    report = MyReporter(t,x,g2,V)
-    #print(report.generate())
+if __name__ == "__main__":
+    example_particle()
